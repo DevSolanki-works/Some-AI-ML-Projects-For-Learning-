@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import os
 import plotly.express as px
+import requests
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 
