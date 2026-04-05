@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import train_test_split
@@ -5,7 +6,10 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score
 
 print("--- Loading Data ---")
-df = pd.read_csv('scraped_data.csv')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "..", "data", "scraped_data.csv")
+
+df = pd.read_csv(DATA_PATH)
 
 # 1. Feature Engineering: Turn words into vectors (Math!)
 vectorizer = TfidfVectorizer(stop_words='english')

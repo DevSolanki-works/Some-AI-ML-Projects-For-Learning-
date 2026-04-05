@@ -31,9 +31,12 @@ Provide a 1-sentence reason why.
 
 
 # --- DATA ENGINE ---
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(BASE_DIR, "..", "data", "scraped_data.csv")
+
 def load_data():
-    if os.path.exists('scraped_data.csv'):
-        return pd.read_csv('scraped_data.csv')
+    if os.path.exists(DATA_PATH):
+        return pd.read_csv(DATA_PATH)
     return pd.DataFrame(columns=['Text', 'Author', 'Tag'])
 
 def train_engine(df):
@@ -44,8 +47,8 @@ def train_engine(df):
     X = vectorizer.fit_transform(df['Text'])
     model = RandomForestClassifier(n_estimators=100)
     model.fit(X, df['Tag'])
-    joblib.dump(model, 'quote_model.pkl')
-    joblib.dump(vectorizer, 'vectorizer.pkl')
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(vectorizer, VECTORIZER_PATH)
     return model, vectorizer
 
 # --- UI LAYOUT ---
@@ -66,10 +69,14 @@ with st.sidebar:
 # --- MAIN: PREDICTION & FEEDBACK ---
 user_input = st.text_input("Enter Quote:", placeholder="Analyze something new...")
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "quote_model.pkl")
+VECTORIZER_PATH = os.path.join(BASE_DIR, "..", "models", "vectorizer.pkl")
+
 if user_input:
-    model = joblib.load('quote_model.pkl')
-    vec = joblib.load('vectorizer.pkl')
-    
+    model = joblib.load(MODEL_PATH)
+    vec = joblib.load(VECTORIZER_PATH)
+
     # Prediction logic
     vec_input = vec.transform([user_input])
     prediction = model.predict(vec_input)[0]
@@ -85,7 +92,7 @@ if user_input:
     if st.button("✅ Submit Correction & Retrain"):
         new_data = pd.DataFrame([{'Text': user_input, 'Author': 'UserContribution', 'Tag': correct_tag}])
         df = pd.concat([df, new_data], ignore_index=True)
-        df.to_csv('scraped_data.csv', index=False)
+        df.to_csv(DATA_PATH, index=False)
         
         with st.spinner("Learning from you..."):
             train_engine(df)
