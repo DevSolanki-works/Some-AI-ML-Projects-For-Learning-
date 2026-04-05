@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
-import requests # To talk to your local Llama 3
+import plotly.express as px
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_extraction.text import TfidfVectorizer
 
@@ -28,48 +28,66 @@ Provide a 1-sentence reason why.
     except:
         return "Llama 3 Offline"
 
-# --- UI HEADER ---
-st.title("🛡️ Pro-Grade Sentiment & Intent Engine")
-st.info("System Architecture: Random Forest Classifier + Llama 3 Hybrid Fallback")
 
-# --- SIDEBAR: DATA CONTROLS ---
+# --- DATA ENGINE ---
+def load_data():
+    if os.path.exists('scraped_data.csv'):
+        return pd.read_csv('scraped_data.csv')
+    return pd.DataFrame(columns=['Text', 'Author', 'Tag'])
+
+def train_engine(df):
+    if len(df) < 5: return None, None
+    # Filter out categories with only 1 entry to avoid split errors
+    df = df.groupby('Tag').filter(lambda x: len(x) > 1)
+    vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+    X = vectorizer.fit_transform(df['Text'])
+    model = RandomForestClassifier(n_estimators=100)
+    model.fit(X, df['Tag'])
+    joblib.dump(model, 'quote_model.pkl')
+    joblib.dump(vectorizer, 'vectorizer.pkl')
+    return model, vectorizer
+
+# --- UI LAYOUT ---
+st.title("🛡️ AI Product Suite: Active Learning Edition")
+df = load_data()
+
+# --- SIDEBAR: ANALYTICS ---
 with st.sidebar:
-    st.header("Control Panel")
-    confidence_threshold = st.slider("Confidence Threshold (%)", 0, 100, 50)
-    if st.button("🔄 Clear Brain & Retrain"):
-        # (Insert your training logic from previous step here)
-        st.success("Brain Refreshed!")
+    st.header("📊 Database Stats")
+    st.write(f"Total Samples: {len(df)}")
+    st.write(f"Unique Categories: {df['Tag'].nunique()}")
+    
+    # Visualizing Category Distribution
+    if not df.empty:
+        fig = px.pie(df, names='Tag', title="Data Balance", hole=0.4)
+        st.plotly_chart(fig, use_container_width=True)
 
-# --- MAIN INTERFACE ---
-col1, col2 = st.columns(2)
+# --- MAIN: PREDICTION & FEEDBACK ---
+user_input = st.text_input("Enter Quote:", placeholder="Analyze something new...")
 
-with col1:
-    user_quote = st.text_area("Input Stream:", placeholder="Type a quote here...", height=150)
-    predict_btn = st.button("🔍 Analyze Intent")
+if user_input:
+    model = joblib.load('quote_model.pkl')
+    vec = joblib.load('vectorizer.pkl')
+    
+    # Prediction logic
+    vec_input = vec.transform([user_input])
+    prediction = model.predict(vec_input)[0]
+    probs = model.predict_proba(vec_input).max() * 100
 
-if predict_btn and user_quote:
-    if os.path.exists('quote_model.pkl'):
-        model = joblib.load('quote_model.pkl')
-        vectorizer = joblib.load('vectorizer.pkl')
+    st.subheader(f"Result: :green[{prediction.upper()}] ({probs:.1f}% confidence)")
+
+    # --- THE ACTIVE LEARNING FEATURE ---
+    st.write("---")
+    st.write("🎯 **Is the AI wrong? Correct it to make it smarter:**")
+    correct_tag = st.selectbox("What should this be?", options=df['Tag'].unique())
+    
+    if st.button("✅ Submit Correction & Retrain"):
+        new_data = pd.DataFrame([{'Text': user_input, 'Author': 'UserContribution', 'Tag': correct_tag}])
+        df = pd.concat([df, new_data], ignore_index=True)
+        df.to_csv('scraped_data.csv', index=False)
         
-        # 1. Get Prediction AND Probabilities
-        input_vector = vectorizer.transform([user_quote])
-        prediction = model.predict(input_vector)[0]
-        probs = model.predict_proba(input_vector).max() * 100 # Highest confidence %
-        
-        with col2:
-            st.metric("Model Confidence", f"{probs:.1f}%")
-            
-            # --- THE HYBRID LOGIC ---
-            if probs < confidence_threshold:
-                st.warning(f"Low Confidence ({probs:.1f}%). Summoning Llama 3...")
-                with st.spinner("Llama 3 is thinking..."):
-                    llm_opinion = ask_llama(user_quote)
-                st.subheader(f"Final Decision: :orange[{llm_opinion}] (LLM)")
-                st.caption("The local model was unsure, so the Gen AI took over.")
-            else:
-                st.subheader(f"Final Decision: :green[{prediction.upper()}] (Local RF)")
-                st.progress(probs / 100)
-    else:
-        st.error("No model found. Train it first!")
+        with st.spinner("Learning from you..."):
+            train_engine(df)
+        st.success(f"Added to database! AI now knows '{user_input}' is {correct_tag}.")
+        st.balloons()
 
