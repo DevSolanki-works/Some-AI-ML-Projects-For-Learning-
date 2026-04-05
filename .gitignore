@@ -1,0 +1,10 @@
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Local Models (Optional, but good if they get huge)
+# *.pkl
+
+# Environment files
+.env
+venv/
